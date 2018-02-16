@@ -1,0 +1,75 @@
+name: apache-drill-spicule # you probably want to 'snapcraft register <name>'
+version: '1.13.0' # just for humans, typically '1.2+git' or '1.3.2'
+summary: Apache Drill - Query any non-relational datastore
+description: |
+  Traditional query engines demand significant IT intervention before data can be queried. 
+  Drill gets rid of all that overhead so that users can just query the raw data in-situ. 
+  There's no need to load the data, create and maintain schemas, or transform the data before it can be processed. 
+  Instead, simply include the path to a Hadoop directory, MongoDB collection or S3 bucket in the SQL query.
+  Drill leverages advanced query compilation and re-compilation techniques to maximize performance without requiring up-front schema knowledge.
+
+grade: devel
+confinement: devmode 
+
+apps:
+  start-drill-distributed:
+    command: drill-launch start
+    plugs: [network,network-bind]
+  stop-drill-distributed:
+    command: drill-launch stop
+    plugs: [network,network-bind]
+  status-drill-distributed:
+    command: drill-launch status
+    plugs: [network,network-bind]
+  drill-embedded:
+    command: drill-embed-launch
+    plugs: [network, network-bind]
+
+parts:
+  drill:
+    plugin: x_maven
+    source: https://github.com/apache/drill.git
+    stage-packages:
+              - lsb-release
+    install: |
+          mkdir -p $SNAPCRAFT_PART_INSTALL/opt/drill
+          tar xvfz distribution/target/*.tar.gz -C $SNAPCRAFT_PART_INSTALL/opt/drill --strip 1
+          cat <<EOF > $SNAPCRAFT_PART_INSTALL/drill-launch
+          #!/bin/sh
+          # Not good, needed for fontconfig
+          export XDG_DATA_HOME=$SNAP/usr/share
+          # Font Config
+          export FONTCONFIG_PATH=$SNAP/etc/fonts/config.d
+          export FONTCONFIG_FILE=$SNAP/etc/fonts/fonts.conf
+          export HOME=$SNAP_USER_DATA
+          export JRE_HOME=\${SNAP}/usr/lib/jvm/default-java/jre
+          export JAVA_HOME=\${SNAP}/usr/lib/jvm/default-java/jre
+          mkdir -p \${SNAP_USER_COMMON}/logs
+          mkdir -p \${SNAP_USER_COMMON}/pid
+          export DRILL_LOG_DIR=\${SNAP_COMMON}/logs
+          export DRILL_PID_DIR=\${SNAP_COMMON}/pid
+          export DRILL_HOME=\${SNAP_DATA}/drill
+          cp -rn \${SNAP}/opt/drill/conf \${SNAP_DATA}/drill/
+          cp -rn \${SNAP}/opt/drill/jars \${SNAP_DATA}/drill/
+          cp -rn \${SNAP}/opt/drill/bin \${SNAP_DATA}/drill/
+          exec \${SNAP}/opt/drill/bin/drillbit.sh \$1
+          EOF
+          chmod +x $SNAPCRAFT_PART_INSTALL/drill-launch
+          cat <<EOF > $SNAPCRAFT_PART_INSTALL/drill-embed-launch
+          #!/bin/sh
+          # Not good, needed for fontconfig
+          export XDG_DATA_HOME=$SNAP/usr/share
+          # Font Config
+          export FONTCONFIG_PATH=$SNAP/etc/fonts/config.d
+          export FONTCONFIG_FILE=$SNAP/etc/fonts/fonts.conf
+          export HOME=$SNAP_USER_DATA
+          export JRE_HOME=\${SNAP}/usr/lib/jvm/default-java/jre
+          export JAVA_HOME=\${SNAP}/usr/lib/jvm/default-java/jre
+          export DRILL_LOG_DIR=\${SNAP_COMMON}/logs
+          export DRILL_PID_DIR=\${SNAP_COMMON}/pid
+          export DRILL_HOME=\${SNAP_DATA}/drill
+          cp -rn \${SNAP}/opt/drill/conf \${SNAP_DATA}/drill/
+          cp -rn \${SNAP}/opt/drill/jars \${SNAP_DATA}/drill/
+          exec \${SNAP}/opt/drill/bin/sqlline -u jdbc:drill:zk=local -n admin -p admin
+          EOF
+          chmod +x $SNAPCRAFT_PART_INSTALL/drill-embed-launch
